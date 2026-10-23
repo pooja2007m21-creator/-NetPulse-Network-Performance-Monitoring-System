@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="NetPulse - Professional Network Performance Monitoring System">
+  <title>NetPulse | Network Performance Monitor</title>
+
+  <!-- Google Fonts for crisp modern typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Core Stylesheet -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>NetPulse</h1>
+          <span class="brand-tagline">Network Performance Monitor</span>
+        </div>
+      </div>
+
+      <div class="header-status">
+        <div class="system-status-indicator" id="systemStatusBadge">
+          <span class="status-dot"></span>
+          <span id="systemStatusText">Checking Server...</span>
+        </div>
+        <div class="clock" id="liveClock">--:--:-- UTC</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Notification Toast Container -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <!-- Main Application Container -->
+  <main class="main-container">
+
+    <!-- Active Monitoring Alert Banner (shown when background monitor is running) -->
+    <section id="activeMonitoringBanner" class="monitoring-banner hidden">
+      <div class="banner-content">
+        <div class="pulse-indicator"></div>
+        <div>
+          <strong>Active Monitoring in Progress:</strong>
+          Pinging <span id="bannerTarget" class="badge badge-target">--</span> every <span id="bannerInterval">--</span>s.
+          (<span id="bannerCount">0</span> checks executed)
+        </div>
+      </div>
+      <button id="bannerStopBtn" class="btn btn-sm btn-danger">Stop Monitoring</button>
+    </section>
+
+    <!-- Host Monitoring Control Section -->
+    <section class="card control-card">
+      <div class="card-header">
+        <div class="card-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+          </svg>
+          <h2>Host Monitoring & Diagnostic Controls</h2>
+        </div>
+        <span class="badge badge-info">ICMP Diagnostic Engine</span>
+      </div>
+
+      <div class="card-body">
+        <form id="monitorForm" class="monitor-form" onsubmit="return false;">
+          <div class="form-row">
+            <!-- Target Host Input -->
+            <div class="form-group flex-grow">
+              <label for="targetInput">Hostname or IP Address <span class="required">*</span></label>
+              <div class="input-with-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                  <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                  <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                  <line x1="6" y1="18" x2="6.01" y2="18"></line>
+                </svg>
+                <input 
+                  type="text" 
+                  id="targetInput" 
+                  name="target" 
+                  placeholder="e.g. 127.0.0.1, localhost, 8.8.8.8, example.com" 
+                  autocomplete="off" 
+                  spellcheck="false"
+                  required
+                >
+              </div>
+            </div>
+
+            <!-- Monitoring Interval Select -->
+            <div class="form-group width-auto">
+              <label for="intervalSelect">Interval</label>
+              <select id="intervalSelect" name="interval">
+                <option value="1">1 second</option>
+                <option value="2">2 seconds</option>
+                <option value="5" selected>5 seconds (Default)</option>
+                <option value="10">10 seconds</option>
+                <option value="30">30 seconds</option>
+              </select>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="form-actions">
+              <button type="button" id="startBtn" class="btn btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                Start Monitoring
+              </button>
+
+              <button type="button" id="stopBtn" class="btn btn-danger" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+                </svg>
+                Stop Monitoring
+              </button>
+
+              <button type="button" id="checkNowBtn" class="btn btn-secondary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+                </svg>
+                Check Now
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick Test Targets -->
+          <div class="quick-targets-row">
+            <span class="quick-label">Safe Test Targets:</span>
+            <div class="quick-buttons">
+              <button type="button" class="btn-tag" data-target="127.0.0.1">127.0.0.1 (Localhost)</button>
+              <button type="button" class="btn-tag" data-target="8.8.8.8">8.8.8.8 (Google DNS)</button>
+              <button type="button" class="btn-tag" data-target="1.1.1.1">1.1.1.1 (Cloudflare DNS)</button>
+              <button type="button" class="btn-tag" data-target="example.com">example.com (IANA)</button>
+            </div>
+          </div>
+
+          <!-- Educational Info Banner -->
+          <div class="info-callout">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <p>
+              <strong>Network Engineering Notice:</strong> ICMP Echo (Ping) measures round-trip time. If a host displays <em>Unreachable</em>, ICMP packets may be intentionally dropped by firewalls, security groups, or ISP filters even if web services are online.
+            </p>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- Key Performance Indicators (KPI Cards) -->
+    <section class="kpi-grid">
+      <!-- Host Status Card -->
+      <div class="kpi-card" id="cardStatus">
+        <div class="kpi-icon-wrapper icon-status">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+        </div>
+        <div class="kpi-content">
+          <span class="kpi-label">Current Host Status</span>
+          <div class="kpi-value-row">
+            <span class="kpi-value" id="kpiStatus">Idle</span>
+          </div>
+          <span class="kpi-subtext" id="kpiTargetName">No host selected</span>
+        </div>
+      </div>
+
+      <!-- Average Response Time Card -->
+      <div class="kpi-card" id="cardLatency">
+        <div class="kpi-icon-wrapper icon-latency">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+        </div>
+        <div class="kpi-content">
+          <span class="kpi-label">Avg Response Time</span>
+          <div class="kpi-value-row">
+            <span class="kpi-value" id="kpiAvgRt">N/A</span>
+            <span class="kpi-unit" id="kpiAvgRtUnit"></span>
+          </div>
+          <span class="kpi-subtext" id="kpiMinMaxRt">Min: N/A | Max: N/A</span>
+        </div>
+      </div>
+
+      <!-- Packet Loss Percentage Card -->
+      <div class="kpi-card" id="cardLoss">
+        <div class="kpi-icon-wrapper icon-loss">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </div>
+        <div class="kpi-content">
+          <span class="kpi-label">Packet Loss (Est.)</span>
+          <div class="kpi-value-row">
+            <span class="kpi-value" id="kpiPacketLoss">0.0%</span>
+          </div>
+          <span class="kpi-subtext" id="kpiLossFormula">(Failed / Total Checks) &times; 100</span>
+        </div>
+      </div>
+
+      <!-- Total & Check Success Counts Card -->
+      <div class="kpi-card" id="cardChecks">
+        <div class="kpi-icon-wrapper icon-checks">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="3" y1="9" x2="21" y2="9"></line>
+            <line x1="9" y1="21" x2="9" y2="9"></line>
+          </svg>
+        </div>
+        <div class="kpi-content">
+          <span class="kpi-label">Total Checks</span>
+          <div class="kpi-value-row">
+            <span class="kpi-value" id="kpiTotalChecks">0</span>
+          </div>
+          <span class="kpi-subtext" id="kpiSuccessFail">
+            <span class="text-success"><strong id="kpiSuccessCount">0</strong> success</span> &bull; 
+            <span class="text-danger"><strong id="kpiFailCount">0</strong> failed</span>
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Performance Charts Section -->
+    <section class="charts-section">
+      <!-- Latency Timeline Line Chart -->
+      <div class="card chart-card large-chart">
+        <div class="card-header">
+          <div class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            </svg>
+            <h3>Response Time History (ms)</h3>
+          </div>
+          <div class="chart-legend-badge">
+            <span class="legend-dot dot-blue"></span> Latency (ms)
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="chart-wrapper">
+            <canvas id="latencyChart"></canvas>
+            <div id="latencyEmptyState" class="empty-chart-state">
+              <p>No latency data recorded yet. Run a check to view performance timeline.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Side Charts: Outcome Distribution & Loss Timeline -->
+      <div class="side-charts-column">
+        <!-- Success / Fail Distribution -->
+        <div class="card chart-card">
+          <div class="card-header">
+            <div class="card-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M12 2a10 10 0 0 1 10 10h-10z"></path>
+              </svg>
+              <h3>Check Outcome Ratio</h3>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="chart-wrapper doughnut-wrapper">
+              <canvas id="outcomeChart"></canvas>
+              <div id="outcomeEmptyState" class="empty-chart-state">
+                <p>No checks completed</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Packet Loss Timeline -->
+        <div class="card chart-card">
+          <div class="card-header">
+            <div class="card-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 3v18h18"></path>
+                <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path>
+              </svg>
+              <h3>Packet Loss Trend (%)</h3>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="chart-wrapper">
+              <canvas id="packetLossChart"></canvas>
+              <div id="lossEmptyState" class="empty-chart-state">
+                <p>No loss data</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Monitoring History & Activity Section -->
+    <section class="card history-card">
+      <div class="card-header">
+        <div class="card-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 14 14"></polyline>
+          </svg>
+          <h2>Monitoring Activity & Check Logs</h2>
+        </div>
+        <div class="table-actions">
+          <button id="refreshHistoryBtn" class="btn btn-sm btn-outline" title="Refresh Table">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+            </svg>
+            Refresh
+          </button>
+          <button id="clearHistoryBtn" class="btn btn-sm btn-outline-danger" title="Purge database records">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            Clear History
+          </button>
+        </div>
+      </div>
+
+      <div class="card-body">
+        <!-- Filters Toolbar -->
+        <div class="table-filters-toolbar">
+          <div class="filter-group">
+            <label for="filterTarget">Filter Target:</label>
+            <input type="text" id="filterTarget" placeholder="e.g. 127.0.0.1" autocomplete="off">
+          </div>
+
+          <div class="filter-group">
+            <label for="filterStatus">Status:</label>
+            <select id="filterStatus">
+              <option value="all">All Statuses</option>
+              <option value="Reachable">Reachable</option>
+              <option value="Unreachable">Unreachable</option>
+              <option value="Unknown">Unknown</option>
+            </select>
+          </div>
+
+          <button id="applyFiltersBtn" class="btn btn-sm btn-secondary">Apply Filters</button>
+          <button id="resetFiltersBtn" class="btn btn-sm btn-outline">Reset</button>
+        </div>
+
+        <!-- History Table -->
+        <div class="table-responsive">
+          <table class="data-table" id="historyTable">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Timestamp (UTC)</th>
+                <th>Target Host</th>
+                <th>Resolved IP</th>
+                <th>Status</th>
+                <th>Response Time</th>
+                <th>Packet Loss</th>
+                <th>Method</th>
+                <th>Diagnostic Note</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody">
+              <!-- Dynamically populated rows or empty state -->
+              <tr>
+                <td colspan="9" class="table-empty-message">
+                  No monitoring records found. Start monitoring or execute a single check above.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Table Pagination -->
+        <div class="pagination-footer">
+          <div class="pagination-info" id="paginationInfo">
+            Showing 0 to 0 of 0 entries
+          </div>
+          <div class="pagination-controls">
+            <button id="prevPageBtn" class="btn btn-sm btn-outline" disabled>&laquo; Previous</button>
+            <span id="currentPageIndicator" class="page-indicator">Page 1</span>
+            <button id="nextPageBtn" class="btn btn-sm btn-outline" disabled>Next &raquo;</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Clear History Confirmation Modal -->
+  <div id="confirmModal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Confirm Clear History</h3>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to permanently clear the monitoring logs from SQLite? This action cannot be undone.</p>
+      </div>
+      <div class="modal-actions">
+        <button id="cancelModalBtn" class="btn btn-outline">Cancel</button>
+        <button id="confirmClearBtn" class="btn btn-danger">Yes, Clear History</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="footer-container">
+      <p>&copy; 2026 NetPulse &bull; Computer Networks Performance & Connectivity Diagnostics</p>
+      <div class="footer-links">
+        <span class="tech-badge">Python 3</span>
+        <span class="tech-badge">Flask</span>
+        <span class="tech-badge">SQLite3</span>
+        <span class="tech-badge">Chart.js</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Application Frontend Script -->
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
